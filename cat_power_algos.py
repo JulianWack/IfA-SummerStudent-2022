@@ -41,45 +41,57 @@ def make_cat(file_path, cosmo=cosmology.Planck15, LOS=[0,0,0], z=0):
     return cat
 
 
-def get_binned_Pk(mesh_in, kbin=[0.05,2,20,'lin']):
+def get_binned_Pk(mesh_in, kbin=[0.05,2,20,'lin'], outfile=''):
     '''Computes the binned 1D power spectrum. 
-    Returns a single 2D np array containing k, Pk in its rows respectively.
-    Note that k and Pk have been binned according to the passed k bin format.'''
+    Returns two 1D np arrays containing k, Pk respectively.'''
+    kbin_edges, kbin_mid = bin_k(kbin)
     r = FFTPower(mesh_in, mode='1d', dk=0.005, kmin=kbin[0])
-    Pk = r.power    
-    binned_Pk = bin_pk(Pk, kbin=kbin, outfile='')    
-        
-    return binned_Pk
+    Pk = r.power
+    pkbin = bin_pk(Pk, kbin_edges)
+    
+    if(outfile!=''):
+        out = np.column_stack((kbin_mid,pkbin))
+        np.savetxt(outfile,out,header='k, pk')
+        print('written: ',outfile)
+    
+    return kbin_mid, pkbin
 
 
-def get_binned_Pkmu(mesh_in, Nmu, LOS, kbin=[0.05,2,20,'lin']):
+def get_binned_Pkmu(mesh_in, Nmu, LOS, kbin=[0.05,2,20,'lin'], outfile=''):
     '''Computes the binned 2D power spectrum.
-    Returns single 3D np array containing 2D arry for binned k and Pk for every value of mu.
+    Returns 1D np array containing binned k and 2D np array containing Pk for every value of mu in its columns.
     Also returns values of mu considered.'''
+    kbin_edges, kbin_mid = bin_k(kbin)
     r = FFTPower(mesh_in, mode='2d', Nmu=Nmu, los=LOS, dk=0.005, kmin=kbin[0])
     Pkmu = r.power # dims (k, mu)
     
-    # bin Pk for each mu. Subtract one from number of bin edges to get number of bins
-    binned_Pkmu = np.empty((Nmu, kbin[2]-1, 2))
+    pksbin = np.empty((len(kbin_mid), Nmu))
     for i in range(Nmu):
-        mu = Pkmu.coords['mu'][i]
         Pk = Pkmu[:,i]
-        binned_Pkmu[i] = bin_pk(Pk, kbin=kbin, outfile='')
+        pksbin[:,i] = bin_pk(Pk, kbin_edges)
+    
+    if(outfile!=''):
+        out = np.column_stack((kbin_mid, pksbin))
+        np.savetxt(outfile,out,header='k, pkmu for mu:' + str(Pkmu.coords['mu']))
+        print('written: ',outfile)
         
-    return binned_Pkmu, Pkmu.coords['mu']
+    return kbin_mid, pksbin, Pkmu.coords['mu']
 
     
-def bin_pk(Pk, kbin, outfile=''):
-    '''See binning_explantion notebook for aiding understanding.'''
-    # bin k
+def bin_k(kbin):
+    '''Perform binning of k. Return edges of bins and their midpoint.'''
     if(kbin[3]=='lin'):
         kbin_ed = np.linspace(kbin[0],kbin[1],kbin[2])
     elif(kbin[3]=='log'):
         kbin_ed = np.power(10,np.linspace(np.log10(kbin[0]),np.log10(kbin[1]),kbin[2]))
         
     kbin_mid = 0.5*(kbin_ed[1:]+kbin_ed[:-1])
-
-    # bin power spectrum
+    
+    return kbin_ed, kbin_mid
+    
+    
+def bin_pk(Pk, kbin_ed):
+    '''See binning_explantion notebook for aiding understanding.'''
     pkin = np.column_stack([Pk['k'], Pk['power'].real - Pk.attrs['shotnoise']])
     
     mode,hh = np.histogram(pkin[:,0],bins=kbin_ed)
@@ -87,11 +99,5 @@ def bin_pk(Pk, kbin, outfile=''):
 
     # perform pkbin=pkbin/mode but aviod divide by 0 error
     pkbin = np.divide(pkbin, mode, out=np.zeros(pkbin.shape), where=mode!=0)
-    
-    pkbin = np.column_stack([kbin_mid,pkbin])
-    
-    if(outfile!=''):
-        np.savetxt(outfile,pkbin,header='k, pk')
-        print('written: ',outfile)
         
     return pkbin
