@@ -41,6 +41,19 @@ def make_cat(file_path, cosmo=cosmology.Planck15, LOS=[0,0,0], z=0):
     return cat
 
 
+def prep_fitscat(cat, cosmo, LOS=[0,0,0], z=0):
+    '''Adds Position, Velocity, and RSDPosition to FITSCatalog.'''
+    cat['Position'] = np.stack([cat['x'].compute(), cat['y'].compute(), cat['z'].compute()], axis=1)
+    cat['Velocity'] = np.stack([cat['vx'].compute(), cat['vy'].compute(), cat['vz'].compute()], axis=1)
+    
+    if LOS != [0,0,0]:
+        # RSD position = position + velocity offset along LOS
+        rsd_factor = (1+z) / (100 * cosmo.efunc(z))
+        cat['RSDPosition'] = cat['Position'] + rsd_factor * vec_projection(cat['Velocity'], LOS)
+        
+    return cat
+
+
 def get_binned_Pk(mesh_in, kbin=[0.05,2,20,'lin'], outfile=''):
     '''Computes the binned 1D power spectrum. 
     Returns two 1D np arrays containing k, Pk respectively.'''
