@@ -70,7 +70,7 @@ def get_binned_Pkmu(mesh_in, Nmu, LOS, kbin=[0.05,2,20,'lin']):
 
     
 def bin_pk(Pk, kbin, outfile=''):
-    '''See binning_explantion notebook for aiding understanding.'''
+    '''Re-bins power spectrum into wider and/or log bins (bin size increases exponentially).'''
     # bin k
     if(kbin[3]=='lin'):
         kbin_ed = np.linspace(kbin[0],kbin[1],kbin[2])
@@ -79,14 +79,15 @@ def bin_pk(Pk, kbin, outfile=''):
         
     kbin_mid = 0.5*(kbin_ed[1:]+kbin_ed[:-1])
 
-    # bin power spectrum
+    # power spectrum with original binning
     pkin = np.column_stack([Pk['k'], Pk['power'].real - Pk.attrs['shotnoise']])
     
-    mode,hh = np.histogram(pkin[:,0],bins=kbin_ed)
-    pkbin,hh = np.histogram(pkin[:,0],bins=kbin_ed,weights=pkin[:,1])
+    # to re-bin, find average power in new k bins. Efficiently done via histograms by using weights 
+    mode,hh = np.histogram(pkin[:,0],bins=kbin_ed) # number of old bins in each new one
+    pkbin,hh = np.histogram(pkin[:,0],bins=kbin_ed,weights=pkin[:,1]) # total power in each new bin
 
-    # perform pkbin=pkbin/mode but aviod divide by 0 error
-    pkbin = np.divide(pkbin, mode, out=np.zeros(pkbin.shape), where=mode!=0)
+    # average power in new bin
+    pkbin = np.divide(pkbin, mode, out=np.zeros(pkbin.shape), where=mode!=0) # pkbin=pkbin/mode but avioding divide by 0 error
     
     pkbin = np.column_stack([kbin_mid,pkbin])
     
