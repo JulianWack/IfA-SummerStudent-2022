@@ -3,12 +3,56 @@ import numpy as np
 from scipy.optimize import minimize
 from scipy.special import legendre
 from scipy.integrate import simpson
-from scipy.linalg import pinv
+from scipy.linalg import LinAlgError, inv, pinv
 import scipy.sparse as ss
 
 from nbodykit.lab import FFTPower
 
 
+
+### Finding data P(k,mu) and multipoles ###
+def load_power_data(base_path, ells, get_data_Pkmus=True):
+    '''Loads in pre-computed power spectra for all density bins to find multipoles for each bin.
+    The base path specifies the location of the folder containing the density bin edges and the power spectra for each bin.
+    Optionally returns data based P(k,mu) and associated mu bins according to
+    eq 24 of Grieb et al. 2016: https://arxiv.org/pdf/1509.04293.pdf.
+    
+    We only need to subtract the shotnoise from the monopole due to the orthogonality of the Legendre polynomials.
+    As the shotnoise is constant wrt to $\mu$, it is proportional to the 0th Legendre polynomial s.t. only the monopole is affected.
+    '''
+    ptile_split = np.loadtxt(base_path+'density_bins/percentile_edges.txt')
+    n_ptile = len(ptile_split)-1 # number of bins = number of edges - 1
+    
+    # need number of k and mu bins to initilize arrays.
+    aux = FFTPower.load(base_path+'density_bins/ptile_0.json')
+    k = aux.poles['k']
+    mus = aux.power.coords['mu']
+    shotnoise = aux.attrs['shotnoise']
+    
+    Pk_ells = np.empty((n_ptile, len(ells), len(k))) # for each denisty bin store all multipoles
+    Pkmus = np.empty((n_ptile, len(k), len(mus))) # for each density bin store 2D power spectrum 
+
+    for i in range(n_ptile):
+        r = FFTPower.load(base_path+'density_bins/ptile_%d.json'%i)
+        poles = r.poles 
+
+        Pkmu_nl = np.zeros((len(k), len(mus)))
+        for j,ell in enumerate(ells):
+            Pk_ell = poles['power_%d' %ell].real
+            if ell == 0: 
+                Pk_ell = Pk_ell - poles.attrs['shotnoise']
+
+            Pk_ells[i][j] = Pk_ell
+            Pkmu_nl += np.outer(Pk_ell, legendre(ell)(mus))
+
+        Pkmus[i] = Pkmu_nl
+    
+    if get_data_Pkmus:
+        return k, shotnoise, n_ptile, Pk_ells, mus, Pkmus 
+    else:
+        return k, shotnoise, n_ptile, Pk_ells
+
+    
 
 ### Finding model P(k,mu) and multipoles ###
 def kaiser_pkmu(k, mu, b1, beta, Plin):
@@ -45,51 +89,9 @@ def model_multipole(k, ell, b1, beta, Plin):
 
     return (2*ell+1)/2 * simpson(integrand, mus) # integrate up all rows separtely
 
-
-
-### Finding data P(k,mu) and multipoles ###
-def load_power_data(base_path, ells, get_Pkmus=True):
-    '''Loads in pre-computed power spectra for all density bins to find multipoles for each bin.
-    The base path specifies the location of the folder containing the density bin edges and the power spectra for each bin.
-    Optionally returns data based P(k,mu) and associated mu bins according to
-    eq 24 of Grieb et al. 2016: https://arxiv.org/pdf/1509.04293.pdf.
-    
-    We only need to subtract the shotnoise from the monopole due to the orthogonality of the Legendre polynomials.
-    As the shotnoise is constant wrt to $\mu$, it is proportional to the 0th Legendre polynomial s.t. only the monopole is affected.
-    '''
-    ptile_split = np.loadtxt(base_path+'density_bins/percentile_edges.txt')
-    n_ptile = len(ptile_split)-1 # number of bins = number of edges - 1
-    
-    Pk_ells = np.empty((n_ptile, len(ells)), dtype='object') # each column contains multipole of all percentiles
-    Pkmus = np.empty(n_ptile, dtype='object') # contains P(k,mu) as 2D array of shape (#k, #mu) for each percentile
-
-    for i in range(n_ptile):
-        r = FFTPower.load(base_path+'density_bins/ptile_%d.json'%i)
-        poles = r.poles 
-        mus = r.power.coords['mu']
-
-        Pkmu_nl = np.zeros((len(poles['k']), len(mus)))
-        for j,ell in enumerate(ells):
-            Pk_ell = poles['power_%d' %ell].real
-            if ell == 0: 
-                Pk_ell = Pk_ell - poles.attrs['shotnoise']
-
-            Pk_ells[i][j] = Pk_ell
-            Pkmu_nl += np.outer(Pk_ell, legendre(ell)(mus))
-
-        Pkmus[i] = Pkmu_nl
-
-    k = poles['k']
-    shotnoise = poles.attrs['shotnoise']
-    
-    if get_Pkmus:
-        return k, shotnoise, n_ptile, Pk_ells, mus, Pkmus 
-    else:
-        return k, shotnoise, n_ptile, Pk_ells
-
     
 
-### Finding inverse of covariance matrix ###
+### Finding inverse of analytic covariance matrix ###
 def per_mode_cov(k, l1, l2, BoxSize, shotnoise, dk, Pkmu, mus):
     '''Construct per mode covariance. See eq 15, 16 (for factor f) of Grieb et al. 2016: https://arxiv.org/pdf/1509.04293.pdf
     Pkmu is a 2D array of shape (# k bins, # mu bins). The above paper presents two possible choices in eq 23, 24 with the former 
@@ -120,8 +122,45 @@ def gaussian_cov_mat_inv(k, ells, BoxSize, shotnoise, dk, Pkmu, mus):
     
     # deal with inverting signular matrix
     try: 
-        inv = ss.linalg.inv(cov_mat).toarray()
-    except RuntimeError:
-        inv = pinv(cov_mat.toarray())
+        inverse = ss.linalg.inv(cov_mat).toarray()
+    except LinAlgError or RuntimeError:
+        inverse = pinv(cov_mat.toarray())
         
-    return inv
+    return inverse
+
+
+
+### Finding inverse of mock covariance matrix ###
+def slice_covmat(cov_mat, k_full, kmax):
+    '''Slices down full covariance matrix to k<=kmax<2 under the assumption that ells = [0,2].
+    The first k bin will be also be sliced away as the quadrupole vanishes in that bin, leading to a divide by 0 error 
+    when computing the correlation matrix.'''    
+    k_slice = (k_full <= kmax)
+    k_slice[0] = False # remove problematic first bin for fitting analysis
+    new_size = int(2*np.sum(k_slice)) # slices matrix will be of shape (new_size, new_size) 
+    mask = np.concatenate((k_slice, k_slice)) # when ells = [0,2,4] concatenate 3 times
+    mat_mask = np.outer(mask, mask) 
+    
+    return np.reshape(cov_mat[mat_mask], (new_size, new_size))
+
+
+def mock_cov_mat_inv(cov_mat, k, kmax):
+    '''Returns inverse of covariance matrix determined by brute force from many N body realizations. 
+    Covariance matricies for every density bin are stored on disk and computed for k<2. For the analysis at hand
+    we are often interested in a smaller kmax such that we need the slice the covariance matrix down first.
+    Note that the number of k bins from the mock boxes used for the covariance matrix must be the same as a the number of k bins
+    in the measurment box .i.e need to pass the same k_min, k_max, dk to FFTPower. The full set of the so obtained k values is k_full.
+    kmax is the maximum k until we seek to fit.
+    
+    Further note that the boxes used to get the covariance matrix have a BoxSize which is 4 times smaller than the BoxSize 
+    of the measurment simulation (500 vs 2000 Mpc/h). To account for this, divide covariance matrix by 4^3.'''
+    
+    sliced_covmat = slice_covmat(cov_mat, k, kmax) / 4**3
+    
+    # deal with inverting signular matrix
+    try: 
+        inverse = inv(sliced_covmat)
+    except LinAlgError or RuntimeError:
+        inverse = pinv(sliced_covmat)
+        
+    return inverse

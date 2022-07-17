@@ -12,11 +12,11 @@ from nbodykit.lab import *
 LOS = [0,0,1]
 redshift = 0
 BoxSize = 2000
-cosmo_paras = classylss.load_ini('Planck18_LCDM.ini')
+cosmo_paras = classylss.load_ini('/home/jwack/main/Planck18_LCDM.ini')
 cosmo = cosmology.cosmology.Cosmology.from_dict(cosmo_paras)
 Plin = cosmology.LinearPower(cosmo, redshift, transfer='EisensteinHu') # matter power spectrum 
 
-kmin, kmax, dk = 0, 0.05, 0.01
+kmin, kmax, dk = 0, 2, 0.01
 Nmesh = 128
 
 # load and split data
