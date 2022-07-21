@@ -38,6 +38,12 @@ np.savetxt("density_bins/percentile_edges.txt", ptile_split,
 end_time = time.time()
 print('Total time for loading and splitting data: %s'%str(timedelta(seconds=end_time-start_time)))
 
+# save power spectrum for whole box
+# large number of mu bins allows to integrate over mu in later analysis.
+mesh = cat.to_mesh(position='RSDPosition', resampler='tsc', BoxSize=BoxSize, Nmesh=128, compensated=True)
+r = FFTPower(mesh, mode='2d', Nmu=51, los=LOS, poles=ells, kmin=kmin, kmax=kmax, dk=dk)
+r.save('density_bins/all_bins.json')
+
 # save power spectrum for each density bin
 ells = [0,2]
 n_ptile = len(ptile_split)-1 # number of bins = number of edges - 1
@@ -46,10 +52,7 @@ for i in range(n_ptile):
     t1 = time.time()
     # get indcies of i-th percentile
     insel = fits[1].where('rho>%f && rho<=%f'%(ptile_split[i],ptile_split[i+1]))
-        
     mesh = cat[insel].to_mesh(position='RSDPosition', resampler='tsc', BoxSize=BoxSize, Nmesh=Nmesh, compensated=True)
-    # large number of mu allows to integrate over mu. Needed for covariance matrix using data P(k,mu) as input. 
-    # See ABC fitting notebook
     r = FFTPower(mesh, mode='2d', Nmu=51, los=LOS, poles=ells, kmin=kmin, kmax=kmax, dk=dk)
     r.save('density_bins/ptile_%d.json'%i)
     print('Computed power of percentile %d'%i)
