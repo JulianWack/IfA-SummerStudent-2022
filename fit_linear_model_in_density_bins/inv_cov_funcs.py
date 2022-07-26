@@ -1,6 +1,5 @@
 # Helper functions to compute the inverse covariance matrix. Functions allow to compute P(k,mu) for linear (or modified) Kaiser law.
 import numpy as np
-from scipy.optimize import minimize
 from scipy.special import legendre
 from scipy.integrate import simpson
 from scipy.linalg import LinAlgError, inv, pinv
@@ -60,14 +59,14 @@ def kaiser_pkmu(k, mu, b1, beta, Plin):
     return (1 + beta*mu**2)**2 *b1**2 * Plin(k)
 
 
-def damped_kaiser_pkmu(k, mu, b1, beta, Plin):
-    '''Uses phenomenological model to account for non-linearity by damping Kaisers prediction for large k.
-    The conventional value of sigma is about 400 km/s.'''
-    sigma = np.sqrt(2) # km/s
+def fog_kaiser_pkmu(k, mu, b1, beta, sigma, Plin):
+    '''Introduces phenomenological Finger of God term to Kaiser model.
+    Common forms of this correction term are Gaussian or Lorentzian, both bring one new free parameter sigma to the model.
+    See eq 7.2 - 7.4 in Hamilton https://arxiv.org/pdf/astro-ph/9708102.pdf.'''
     return np.exp(-0.5*(sigma*k*mu)**2)*kaiser_pkmu(k, mu, b1, beta, Plin)
 
 
-def make_Pkmu(k, b1, beta, Plin):
+def make_Pkmu(k, b1, beta, sigma, Plin):
     '''Make 2D array containing the model P(k,mu) with rows iterating k bins and columns iterating mu bins.
     Later seek to integrate up each row i.e. integrate over mu. Nmu defines the discretiation.
     Plin is function to compute the linear matter power spectrum such as nbodykit.cosmology.power.linear.LinearPower.'''
@@ -76,14 +75,14 @@ def make_Pkmu(k, b1, beta, Plin):
     Pkmu = np.empty((len(k), Nmu))
     
     for i,mu in enumerate(mus):
-        Pkmu[:,i] = kaiser_pkmu(k,mu,b1,beta,Plin)
+        Pkmu[:,i] = fog_kaiser_pkmu(k,mu,b1,beta,sigma,Plin)
         
     return Pkmu, mus
 
 
-def model_multipole(k, ell, b1, beta, Plin):
-    '''Computes ell-th multipole of model P(k,mu) by projecting on Legendre polynominal.'''
-    Pkmu, mus = make_Pkmu(k, b1, beta, Plin)
+def model_multipole(k, ell, b1, beta, sigma, Plin):
+    '''Computes ell-th multipole of damped Kaiser model P(k,mu) by projecting on Legendre polynominal.'''
+    Pkmu, mus = make_Pkmu(k, b1, beta, sigma, Plin)
     L_ell = legendre(ell)(mus)
     integrand = L_ell*Pkmu # each column gets multiplied by value of Legendre poly at assocaiated mu
 
