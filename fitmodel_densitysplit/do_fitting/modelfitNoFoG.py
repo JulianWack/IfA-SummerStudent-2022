@@ -1,4 +1,4 @@
-# Fit Kaiser with FoG term as explained in modelfit.ipynb
+# Fit Kaiser model
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import legendre, erf
@@ -6,10 +6,13 @@ from datetime import timedelta
 import time
 from os import mkdir, listdir
 
-from astropy.cosmology import Planck18 as Planck18_astropy 
 import helper_funcs as hf
+from astropy.cosmology import Planck18 as Planck18_astropy 
+import camb
 import zeus 
 from nbodykit.lab import *
+from nbodykit import style
+plt.style.use(style.notebook)
 
 
 ### MCMC functions###
@@ -63,8 +66,14 @@ BoxSize = 2000
 cosmo = cosmology.Cosmology.from_astropy(Planck18_astropy)
 Plin = cosmology.LinearPower(cosmo, redshift, transfer='CLASS')
 sigma8_lin = Plin.sigma_r(8)
-sigma8_true = 0.8111 
-f_true = cosmo.scale_independent_growth_rate(redshift)
+
+# load Planck18 data for CAMB and find f*sigma8 at redshift
+# follows https://camb.readthedocs.io/en/latest/CAMBdemo.html
+pars=camb.read_ini('/home/jwack/main/fitmodel_densitysplit/planck_2018.ini')
+_ = pars.set_matter_power(redshifts=[redshift], kmax=1.4)
+pars.NonLinear = camb.model.NonLinear_none
+results = camb.get_results(pars)
+fs8_true = results.get_fsigma8()[0]
 
 ptile_labels = [r'$0^{th}$', r'$1^{st}$', r'$2^{nd}$', r'$3^{rd}$', r'$4^{th}$', r'$5^{th}$', r'$6^{th}$', r'$7^{th}$', r'$8^{th}$', r'$9^{th}$']
 dk = 0.01
@@ -124,8 +133,8 @@ for i in range(n_ptile):
         if i == 0:
             b1_fits[i][j] *= -1
         beta_fits[i][j], beta_stds[i][j] = np.mean(chain[:,1]), np.std(chain[:,1])
-        delta_fs8[i][j] = 1 - sigma8_lin*(beta_fits[i][j]*b1_fits[i][j])/(f_true*sigma8_true)
-        delta_fs8_stds[i][j] = np.abs(sigma8_lin/(f_true*sigma8_true)*(beta_stds[i][j]*b1_fits[i][j]+beta_fits[i][j]*b1_stds[i][j]))
+        delta_fs8[i][j] = 1 - sigma8_lin*(beta_fits[i][j]*b1_fits[i][j])/fs8_true
+        delta_fs8_stds[i][j] = np.abs(sigma8_lin/fs8_true*(beta_stds[i][j]*b1_fits[i][j]+beta_fits[i][j]*b1_stds[i][j]))
         
         reduced_chi2[i][j] = -2*loglike([b1_fits[i][j], beta_fits[i][j]], Pk_ells_i, k_sliced, C_inv) / (len(ells)*len(k_sliced)-ndim)
 
@@ -155,15 +164,10 @@ fig = plt.figure(figsize=(20,8))
 for i in range(n_ptile):
     plt.plot(kmax_range, delta_fs8[i], label=ptile_labels[i])
     plt.fill_between(kmax_range, delta_fs8[i]-delta_fs8_stds[i,:], delta_fs8[i]+delta_fs8_stds[i,:], alpha=0.1)
-    
-# add 10% diviation lines
-plt.hlines([-0.1, 0.1], kmax_range[0], kmax_range[-1], linestyle='dotted', color='k', linewidth=2)
 
-plt.ylim([-0.3, 1.2])
-
-plt.title(r'relative difference to true $f(z)*\sigma_8(z)$ at $z=%.3f$'%redshift)
+plt.title(r'$\Delta f_0\sigma_8$ at $z=%.3f$'%redshift)
 plt.xlabel(r'$k_{max}$ [$h \ \mathrm{Mpc}^{-1}$]')
-plt.ylabel(r'$1 - \sigma_8^{lin}(z)*\beta*b_1/(f(z)\sigma_8(z))^{true}$')
+plt.ylabel(r'$1 - (\sigma_8^{lin}*\beta*b_1) \ / \ (f_0\sigma_8)^{true}$')
 
 handles, labels = plt.gca().get_legend_handles_labels()
 fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.05), ncol=n_ptile)

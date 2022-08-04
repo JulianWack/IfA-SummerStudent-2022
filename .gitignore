@@ -1,3 +1,4 @@
 # ignore large data produced in process of computing mock covariance matrix
-bruteforce_covmat/density_splits/*
-bruteforce_covmat/covariance_matricies/*
+fitmodel_densitysplit/bruteforce_covmat/density_splits/*
+fitmodel_densitysplit/power_densitybins/*.npy
+
