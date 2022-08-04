@@ -19,11 +19,11 @@ def load_power_data(base_path, ells, get_data_Pkmus=True):
     We only need to subtract the shotnoise from the monopole due to the orthogonality of the Legendre polynomials.
     As the shotnoise is constant wrt to $\mu$, it is proportional to the 0th Legendre polynomial s.t. only the monopole is affected.
     '''
-    ptile_split = np.loadtxt(base_path+'density_bins/percentile_edges.txt')
+    ptile_split = np.loadtxt(base_path+'power_densitybins/percentile_edges.txt')
     n_ptile = len(ptile_split)-1 # number of bins = number of edges - 1
     
     # need number of k and mu bins to initilize arrays.
-    aux = FFTPower.load(base_path+'density_bins/ptile_0.json')
+    aux = FFTPower.load(base_path+'power_densitybins/ptile_0.json')
     k = aux.poles['k']
     mus = aux.power.coords['mu']
     shotnoise = aux.attrs['shotnoise']
@@ -32,7 +32,7 @@ def load_power_data(base_path, ells, get_data_Pkmus=True):
     Pkmus = np.empty((n_ptile, len(k), len(mus))) # for each density bin store 2D power spectrum 
 
     for i in range(n_ptile):
-        r = FFTPower.load(base_path+'density_bins/ptile_%d.json'%i)
+        r = FFTPower.load(base_path+'power_densitybins/ptile_%d.json'%i)
         poles = r.poles 
 
         Pkmu_nl = np.zeros((len(k), len(mus)))
