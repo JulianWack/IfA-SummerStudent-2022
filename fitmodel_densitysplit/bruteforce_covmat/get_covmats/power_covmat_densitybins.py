@@ -4,20 +4,44 @@ import time
 from datetime import timedelta
 from os import mkdir, listdir
 
-import cat_power_algos as catpk
-import classylss
+from astropy.cosmology import Planck18 as Planck18_astropy
 import fitsio
 from nbodykit.lab import *
 
+
+
+### Helper functions ###
+def vec_projection(vector, direction):
+    '''Projects vector on direction vector (can be non-normalised).'''
+    direction = numpy.asarray(direction, dtype='f8')
+    direction = direction / (direction ** 2).sum() ** 0.5
+    projection = (vector * direction).sum(axis=-1)
+    projection = projection[:, None] * direction[None, :]
+
+    return projection
+
+
+def prep_fitscat(cat, cosmo, LOS=[0,0,0], z=0):
+    '''Adds Position, Velocity, and RSDPosition to FITSCatalog.'''
+    cat['Position'] = np.stack([cat['x'].compute(), cat['y'].compute(), cat['z'].compute()], axis=1)
+    cat['Velocity'] = np.stack([cat['vx'].compute(), cat['vy'].compute(), cat['vz'].compute()], axis=1)
+    
+    if LOS != [0,0,0]:
+        # RSD position = position + velocity offset along LOS
+        rsd_factor = (1+z) / (100 * cosmo.efunc(z))
+        cat['RSDPosition'] = cat['Position'] + rsd_factor * vec_projection(cat['Velocity'], LOS)
+        
+    return cat
+########################
+
+
 wdir = '/home/jwack/main/bruteforce_covmat/' # main working directory
 LOS = [0,0,1]
-redshift = 0
+redshift = 0.2
 BoxSize = 500
-cosmo_paras = classylss.load_ini(wdir+'Planck18_LCDM.ini')
-cosmo = cosmology.cosmology.Cosmology.from_dict(cosmo_paras)
-Plin = cosmology.LinearPower(cosmo, redshift, transfer='EisensteinHu') 
+cosmo = cosmology.Cosmology.from_astropy(Planck18_astropy)
 
-kmin, kmax, dk = 0, 2, 0.01
+kmin, kmax, dk = 0, 1.4, 0.01 # with given boxsize get NaN for larger kmax
 Nmesh = 128
 
 ells = [0, 2]
@@ -49,7 +73,7 @@ for density_file in listdir(density_basepath):
     t1 = time.time()
     # make catalog and find value of denisty at percentile edges
     cat = FITSCatalog(data_path)
-    cat = catpk.prep_fitscat(cat, cosmo=cosmo, LOS=LOS, z=redshift)
+    cat = prep_fitscat(cat, cosmo=cosmo, LOS=LOS, z=redshift)
     fits = fitsio.FITS(density_path)
     ptile_split = np.percentile(fits[1]['rho'][:], percent_edges)
     np.savetxt(wdir+'density_splits/BGS_box_ph%d/percentile_edges.txt'%idx, ptile_split, 
@@ -72,7 +96,7 @@ n_boxes = len(listdir(wdir+'density_splits'))
 
 for i in range(n_bins):
     for s,box_folder in enumerate(listdir(wdir+'density_splits')): 
-        if box_folder == '.ipynb_checkpoints': continue
+        if box_folder == '.ipynb_checkpoints' or len(listdir(wdir+'density_splits/'+box_folder)) != 11: continue # safety checks that box has valid data
         r = FFTPower.load(wdir+'density_splits/'+box_folder+'/power_ptile_%d.json'%i)
         poles = r.poles 
         

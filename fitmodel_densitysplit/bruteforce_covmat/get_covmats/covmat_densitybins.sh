@@ -1,6 +1,6 @@
 #!/bin/tcsh
 #SBATCH --job-name=covmat_densitybins
-#SBATCH --time=00:10:00
+#SBATCH --time=10:00:00
 #SBATCH --ntasks=1
 #SBATCH --mem=1G
 
