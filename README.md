@@ -61,4 +61,14 @@ and connect to a jupyter sever as described above and select the correct kernel 
 
   
 ## Main analysis workflow
+The main aim of the analysis is to fit a simple model (Kaiser model with Finger of God term) for the redshift space power spectrum by considering galaxies belonging to different density intervals. The motivation behind this is that relativistic effects manifest themselves in the cross-correlation of tracer fields for the same volume of space but with different bias [[Beutler et al.]](https://doi.org/10.48550/arXiv.2004.08014). In order to test for what scales the considered model yields accurate enough predictions, the fitting is performed for a selection of $k$ ranges. 
+An overview of what tasks are performed by which files (with path relative to `fitmodel_densitysplit`) is given below. Please consider the project report for a more in depth discussion.
 
+1. Compute and store the 2D redshift space power spectrum for each density bin: `getpower_densitybins/`. A visualisation of the density partition is provided by `show_densityfield.ipynb`.
+2. Estimate the covariance matrix of the monopole and quadrupole for each density bin: `bruteforce_covmat/`
+3. Perform a fast estimation of the KaiserFoG model parameter values and store these: `pre-analysis_fitting.ipynb`
+4. Fit the power spectrum model in each density bin using Markov Chain Monte Carlo, store the results, and make plots illustrating the quality of the fit: `do_fitting/`
+  This fitting is performed for an incrementally enlarged range of $k$ and the fitted model parameters are plotted in terms of $k_{max}$, the upper bound of the consider $k$ range.
+5. Compare the data and the predictions by the Kaiser and KaiserFoG models: `compare_data_fittedmodels.ipynb`
+
+The computationally expensive steps 1, 2, and 4 are designed to be submitted as jobs to Cuillin. Information on how to do so can be found [here](https://cuillin.roe.ac.uk/projects/documentation/wiki/Job_Submission). Alternatively, one my use the bash files in the directories of the referenced steps as templates. 
