@@ -175,9 +175,9 @@ for i in range(n_ptile):
     plt.plot(kmax_range, delta_fs8[i], label=ptile_labels[i])
     plt.fill_between(kmax_range, delta_fs8[i]-delta_fs8_stds[i,:], delta_fs8[i]+delta_fs8_stds[i,:], alpha=0.1)
 
-plt.title(r'$\Delta f_0\sigma_8$ at $z=%.3f$'%redshift)
+plt.title(r'$\Delta f\sigma_8$ at $z=%.3f$'%redshift)
 plt.xlabel(r'$k_{max}$ [$h \ \mathrm{Mpc}^{-1}$]')
-plt.ylabel(r'$1 - (\sigma_8^{lin}*\beta*b_1) \ / \ (f_0\sigma_8)^{true}$')
+plt.ylabel(r'$1 - (\sigma_8^{lin}*\beta*b_1) \ / \ (f\sigma_8)^{true}$')
 
 handles, labels = plt.gca().get_legend_handles_labels()
 fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.05), ncol=n_ptile)
