@@ -1,8 +1,9 @@
-#!/bin/tcsh
+#!/bin/bash
 #SBATCH --job-name=fitmodel
 #SBATCH --time=20:00:00
 #SBATCH --ntasks=1
 #SBATCH --mem=1G
 
-set LogFile=Log-Serial.$SLURM_JOBID
-python3 modelfit.py >> $LogFile
+module unload anaconda/3 # needed when module has been loaded previously 
+module load anaconda/3.7
+python3 modelfit.py >> Log.$SLURM_JOBID
