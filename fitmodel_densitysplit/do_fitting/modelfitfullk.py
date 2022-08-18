@@ -76,7 +76,7 @@ sigma8_lin = Plin.sigma_r(8)
 
 # load Planck18 data for CAMB and find f*sigma8 at redshift
 # follows https://camb.readthedocs.io/en/latest/CAMBdemo.html
-pars=camb.read_ini('/home/jwack/main/fitmodel_densitysplit/planck_2018.ini')
+pars=camb.read_ini('../planck_2018.ini')
 _ = pars.set_matter_power(redshifts=[redshift], kmax=1.4)
 pars.NonLinear = camb.model.NonLinear_none
 results = camb.get_results(pars)
@@ -87,7 +87,8 @@ dk = 0.01
 ells = [0,2]
 
 # load computed power spectra to deduce multipoles in each bin and P(k,mu) from data
-k_full, shotnoise, n_ptile, Pk_ells_full = hf.load_power_data('/home/jwack/main/fitmodel_densitysplit/', ells, get_data_Pkmus=False)
+# need to pass location location of folder containing stored power spectra which lies one level lower in this case
+k_full, shotnoise, n_ptile, Pk_ells_full = hf.load_power_data('../', ells, get_data_Pkmus=False)
 # for given BoxSize, k is NaN above 0.034
 possible_kmax = k_full[k_full<=0.343][1:] # ignore first k bin
 
@@ -109,14 +110,14 @@ start = np.column_stack([start_b1, start_beta, start_sigma])
 
 
 ### Run MCMC ###
-root_path = '/home/jwack/main/fitmodel_densitysplit/fit_results/FoG_fullk/'
+root_path = '../fit_results/FoG_fullk/'
 print("Fitting up to kmax=%.3f"%kmax_range[-1])
 
 for i in range(n_ptile):
     store_path = root_path+'chains_ptile%d/'%i
     if 'chains_ptile%d'%i not in listdir(root_path):
         mkdir(store_path)
-    cov_mat = np.loadtxt('/home/jwack/main/fitmodel_densitysplit/bruteforce_covmat/covariance_matricies/cov_ptile_%d.txt'%i)
+    cov_mat = np.loadtxt('../bruteforce_covmat/covariance_matricies/cov_ptile_%d.txt'%i)
     t1 = time.time()
     for j,kmax in enumerate(kmax_range):
         if 'k%d.npy'%j in listdir(store_path):
@@ -183,7 +184,7 @@ plt.ylabel(r'$1 - (\sigma_8^{lin}*\beta*b_1) \ / \ (f\sigma_8)^{true}$')
 handles, labels = plt.gca().get_legend_handles_labels()
 fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.05), ncol=n_ptile)
 
-fig.savefig("/home/jwack/main/fitmodel_densitysplit/plots/KaiserFoG_fullk_dfs8_vs_kmax.pdf")
+fig.savefig("../plots/KaiserFoG_fullk_dfs8_vs_kmax.pdf")
 #####################
 
 
@@ -227,5 +228,5 @@ ax_chi2.set_ylabel(r'$\chi^2 / dof$')
 handles, labels = plt.gca().get_legend_handles_labels()
 fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, +0.05), ncol=n_ptile)
 
-fig.savefig("/home/jwack/main/fitmodel_densitysplit/plots/KaiserFoG_fullk_fits.pdf")
+fig.savefig("../plots/KaiserFoG_fullk_fits.pdf")
 #####################

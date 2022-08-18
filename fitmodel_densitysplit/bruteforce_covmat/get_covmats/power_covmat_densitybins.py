@@ -35,7 +35,7 @@ def prep_fitscat(cat, cosmo, LOS=[0,0,0], z=0):
 ########################
 
 
-wdir = '/home/jwack/main/bruteforce_covmat/' # main working directory
+wdir = '../' # main working directory is burteforce_covmat folder
 LOS = [0,0,1]
 redshift = 0.2
 BoxSize = 500
